@@ -60,6 +60,8 @@ contract TurtleFinanceMainV1 is Ownable {
     event AddPair(address indexed pair);
 
     constructor(address treTokenAddr_, address uniswapRouterV2Addr_, address mdexSwapMiningAddr_){
+        require(treTokenAddr_ != address(0), "treTokenAddr_ address cannot be 0");
+        require(uniswapRouterV2Addr_ != address(0), "uniswapRouterV2Addr_ address cannot be 0");
         _operator = _msgSender();
         platformFeeReceiver = payable(msg.sender);
         treTokenAddr = treTokenAddr_;
@@ -151,7 +153,7 @@ contract TurtleFinanceMainV1 is Ownable {
         _tokenPoolBalanceChange(token);
     }
 
-    function _tokenPoolReceived(address fromAddr, address token, uint256 quantity) private {
+    function _tokenPoolReceived(address token, uint256 quantity) private {
         TokenPool storage pool = tokenPoolMap[token];
         pool.totalQuantity = pool.totalQuantity + quantity;
         pool.mainBalance = IERC20(token).balanceOf(address(this));
@@ -170,12 +172,12 @@ contract TurtleFinanceMainV1 is Ownable {
     }
 
     modifier onlyNotLocked(){
-        require(lockOperator == false, 'operator: locked');
+        require(!lockOperator, 'operator: locked');
         _;
     }
 
     modifier onlyOperator() {
-        require(lockOperator == false, 'operator: locked');
+        require(!lockOperator, 'operator: locked');
         require(
             _operator == msg.sender || owner() == msg.sender,
             'operator: caller is not the operator'
@@ -186,11 +188,11 @@ contract TurtleFinanceMainV1 is Ownable {
     // --------------- view functions -----------------------
 
 
-    function operator() public view returns (address) {
+    function operator() external view returns (address) {
         return _operator;
     }
 
-    function getPairs() public view returns (TurtleFinancePairV1.PairInfo[] memory){
+    function getPairs() external view returns (TurtleFinancePairV1.PairInfo[] memory){
         uint256 len = pairs.length();
         TurtleFinancePairV1.PairInfo[] memory infos = new TurtleFinancePairV1.PairInfo[](len);
         for (uint256 i = 0; i < len; i++) {
@@ -201,7 +203,7 @@ contract TurtleFinanceMainV1 is Ownable {
         return infos;
     }
 
-    function getTokenPools() public view returns (TokenPool[] memory){
+    function getTokenPools() external view returns (TokenPool[] memory){
         uint256 len = tokenPools.length();
         TokenPool[] memory pools = new TokenPool[](len);
         for (uint256 i = 0; i < len; i++) {
@@ -210,7 +212,7 @@ contract TurtleFinanceMainV1 is Ownable {
         return pools;
     }
 
-    function pairMdexSwapMiningGetUserReward(address pairAddr, uint256 pid) public view returns (uint256, uint256){
+    function pairMdexSwapMiningGetUserReward(address pairAddr, uint256 pid) external view returns (uint256, uint256){
         require(pairs.contains(pairAddr), "pair not exists");
         require(mdexSwapMiningAddr != address(0), "Not support");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddr);
@@ -224,22 +226,23 @@ contract TurtleFinanceMainV1 is Ownable {
 
     // --------------- admin functions -----------------------
 
-    function transferOperator(address newOperator_) public onlyOwner {
+    function transferOperator(address newOperator_) external onlyOwner {
         _transferOperator(newOperator_);
     }
 
-    function setPlatformFeeReceiver(address payable platformFeeReceiver_) public onlyOwner {
+    function setPlatformFeeReceiver(address payable platformFeeReceiver_) external onlyOwner {
+        require(platformFeeReceiver_ != address(0), "platformFeeReceiver_ address cannot be 0");
         platformFeeReceiver = platformFeeReceiver_;
     }
 
-    function pairMdexSwapMiningTakerWithdraw(address pairAddr, address to) public onlyOwner {
+    function pairMdexSwapMiningTakerWithdraw(address pairAddr, address to) external onlyOwner {
         require(pairs.contains(pairAddr), "pair not exists");
         require(mdexSwapMiningAddr != address(0), "Not support");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddr);
         pair.mdexSwapMiningTakerWithdraw(mdexSwapMiningAddr, to);
     }
 
-    function tokenPoolSet(address addr, address bankAddr, uint256 min, uint256 exp, uint256 max) public onlyOwner {
+    function tokenPoolSet(address addr, address bankAddr, uint256 min, uint256 exp, uint256 max) external onlyOwner {
         TokenPool storage pool = tokenPoolMap[addr];
         require(pool.addr == addr && addr != address(0), "token not exists.");
         require(min > 0 && min <= exp && exp <= max && max < 1E4, "rate error");
@@ -264,19 +267,19 @@ contract TurtleFinanceMainV1 is Ownable {
     }
 
 
-    function setLockOperator(bool is_lock) public onlyOwner {
+    function setLockOperator(bool is_lock) external onlyOwner {
         lockOperator = is_lock;
     }
 
-    function withdrawToken(address token, address payable to, uint256 quantity) public onlyOwner {
+    function withdrawToken(address token, address payable to, uint256 quantity) external onlyOwner {
         if (token == address(0))
             to.transfer(quantity);
         else
             IERC20(token).safeTransfer(to, quantity);
     }
 
-    function addPair(address pairAddress, address uniswapRouterV2Addr_) public onlyOwner {
-        require(pairs.contains(pairAddress) == false, "repeat add");
+    function addPair(address pairAddress, address uniswapRouterV2Addr_) external onlyOwner {
+        require(!pairs.contains(pairAddress), "repeat add");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         require(address(pair.mainContract()) == address(this), "Main address error.");
         if (uniswapRouterV2Addr_ != address(0))
@@ -290,6 +293,13 @@ contract TurtleFinanceMainV1 is Ownable {
         pairsSwapItemIdSEQMap[pairAddress] = pairs.length() * 1E10;
         emit AddPair(pairAddress);
     }
+
+    function pairAddRewardPool(address pairAddress, uint256 totalRewardQuantity, uint256 startTime, uint256 periodTime) onlyOwner external {
+        require(pairs.contains(pairAddress), "pair not exists");
+        TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
+        pair.rewardAddPool(msg.sender, totalRewardQuantity, startTime, periodTime);
+    }
+
     // --------------- admin functions end -----------------------
 
 
@@ -297,17 +307,18 @@ contract TurtleFinanceMainV1 is Ownable {
 
 
     // --------------- to pair functions -----------------------
-    function pairSetInfo(address pairAddress, TurtleFinancePairV1.PairInfo calldata form) onlyOperator public {
+    function pairSetInfo(address pairAddress, TurtleFinancePairV1.PairInfo calldata form) onlyOperator external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         pair.setPairInfo(form);
     }
 
-    function pairSwap(address pairAddress, uint256 itemId, UniswapRouterV2SwapTokenParams memory swapParams) onlyOperator public {
+    function pairSwap(address pairAddress, uint256 itemId, UniswapRouterV2SwapTokenParams memory swapParams) onlyOperator external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
         TurtleFinancePairV1.SwapItem memory item = pair.getSwapInfo(itemId);
+        require(item.enabled, "SwapItem disabled");
         if (item.holdIdx == 0) {
             uint pathLen = swapParams.path.length;
             require(swapParams.amountIn == item.token0Balance, "swap in amount error");
@@ -332,18 +343,18 @@ contract TurtleFinanceMainV1 is Ownable {
                 IERC20 et = IERC20(info.token0);
                 et.safeTransfer(platformFeeReceiver, platformFee);
             }
-            _tokenPoolReceived(pairAddress, info.token0, item.token0Balance);
+            _tokenPoolReceived(info.token0, item.token0Balance);
         } else {
             if (platformFee > 0) {
                 IERC20 et = IERC20(info.token1);
                 et.safeTransfer(platformFeeReceiver, platformFee);
             }
-            _tokenPoolReceived(pairAddress, info.token1, item.token1Balance);
+            _tokenPoolReceived(info.token1, item.token1Balance);
         }
         emit Action(pairAddress, "swap", item.maker, item.id, item.holdIdx, item.token0Balance, item.token1Balance);
     }
 
-    function pairCreate(address pairAddress, address maker, uint256 extId, uint16 holdIdx, uint256 token0Balance, uint256 token1Balance) onlyOperator public {
+    function pairCreate(address pairAddress, address maker, uint256 extId, uint16 holdIdx, uint256 token0Balance, uint256 token1Balance) onlyOperator external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
@@ -353,13 +364,13 @@ contract TurtleFinanceMainV1 is Ownable {
             require(token0Balance <= info.maxToken0, "0 too high");
             IERC20 et = IERC20(info.token0);
             et.safeTransferFrom(maker, payable(address(this)), token0Balance);
-            _tokenPoolReceived(maker, info.token0, token0Balance);
+            _tokenPoolReceived(info.token0, token0Balance);
         } else {
             require(token1Balance >= info.minToken1, "1 too low");
             require(token1Balance <= info.maxToken1, "1 too high");
             IERC20 et = IERC20(info.token1);
             et.safeTransferFrom(maker, payable(address(this)), token1Balance);
-            _tokenPoolReceived(maker, info.token1, token1Balance);
+            _tokenPoolReceived(info.token1, token1Balance);
         }
         pairsSwapItemIdSEQMap[pairAddress] = pairsSwapItemIdSEQMap[pairAddress] + 1;
         uint256 itemId = pairsSwapItemIdSEQMap[pairAddress];
@@ -367,7 +378,7 @@ contract TurtleFinanceMainV1 is Ownable {
         emit Action(pairAddress, "create", item.maker, item.id, item.holdIdx, item.token0Balance, item.token1Balance);
     }
 
-    function pairRemove(address pairAddress, uint256 itemId) onlyNotLocked public {
+    function pairRemove(address pairAddress, uint256 itemId) onlyNotLocked external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
@@ -382,7 +393,7 @@ contract TurtleFinanceMainV1 is Ownable {
         emit Action(pairAddress, "remove", item.maker, item.id, item.holdIdx, item.token0Balance, item.token1Balance);
     }
 
-    function pairRewardEarned() public view returns (uint256){
+    function pairRewardEarned() external view returns (uint256){
         uint256 len = pairs.length();
         uint256 earned = 0;
         for (uint256 i = 0; i < len; i++) {
@@ -394,7 +405,7 @@ contract TurtleFinanceMainV1 is Ownable {
         return earned;
     }
 
-    function pairRewardGet() onlyNotLocked public {
+    function pairRewardGet() onlyNotLocked external {
         uint256 len = pairs.length();
         for (uint256 i = 0; i < len; i++) {
             address pairAddr = pairs.at(i);
@@ -403,7 +414,7 @@ contract TurtleFinanceMainV1 is Ownable {
         }
     }
 
-    function pairRewardGetOfPair(address pairAddr) onlyNotLocked public {
+    function pairRewardGetOfPair(address pairAddr) onlyNotLocked external {
         require(pairs.contains(pairAddr), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddr);
         pair.rewardGet(msg.sender);

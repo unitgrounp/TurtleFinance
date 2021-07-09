@@ -69,6 +69,11 @@ contract BankSoloTop is ITurtleFinanceTokenPoolBank {
     ITurtleFinanceMainV1 public mainContract;
 
     constructor(address mainAddr_, address solo_, address rewardTokenAddr_) {
+
+        require(mainAddr_ != address(0), "mainAddr_ address cannot be 0");
+        require(solo_ != address(0), "solo_ address cannot be 0");
+        require(rewardTokenAddr_ != address(0), "rewardTokenAddr_ address cannot be 0");
+
         solo = ISolo(solo_);
         rewardTokenAddr = rewardTokenAddr_;
         mainContract = ITurtleFinanceMainV1(mainAddr_);

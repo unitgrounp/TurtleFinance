@@ -69,13 +69,13 @@ contract TurtleFinancePairV1 is Ownable {
     PairStats private _pairStats;
 
 
-    constructor (address main, address token0, address token1, uint256 rewardHalveTime, uint256 rewardHalveRate, uint256 rewardQuantity, uint256 rewardHalveMax)  {
+    constructor (address main, address token0, address token1)  {
         mainContract = ITurtleFinanceMainV1(main);
         _pairInfo.addr = address(this);
         _pairInfo.token0 = token0;
         _pairInfo.token1 = token1;
         transferOwnership(main);
-        reward = new TurtleFinanceTreRewardV1(mainContract.treTokenAddr(), rewardHalveTime, rewardHalveRate, rewardQuantity, rewardHalveMax);
+        reward = new TurtleFinanceTreRewardV1(mainContract.treTokenAddr());
     }
 
     function getSwapItemIdRange() public view returns (uint256, uint256){
@@ -103,6 +103,8 @@ contract TurtleFinancePairV1 is Ownable {
     }
 
     function setPairInfo(PairInfo calldata form) public onlyOwner {
+        require(form.minToken0 <= form.maxToken0, 'minToken0 cannot larger than maxToken0');
+        require(form.minToken1 <= form.maxToken1, 'minToken1 cannot larger than maxToken1');
         _pairInfo.enabled = form.enabled;
         _pairInfo.minToken0 = form.minToken0;
         _pairInfo.minToken1 = form.minToken1;
@@ -124,7 +126,7 @@ contract TurtleFinancePairV1 is Ownable {
         require(item.enabled, "disabled");
         IERC20 et0 = IERC20(_pairInfo.token0);
         IERC20 et1 = IERC20(_pairInfo.token1);
-        int256 platformFee = 0;
+        uint256 platformFee = 0;
         if (item.holdIdx == 0) {
             item.holdIdx = 1;
             _pairStats.totalRealToken0 -= item.token0Balance;
@@ -134,8 +136,7 @@ contract TurtleFinancePairV1 is Ownable {
             Utils.functionCall(uniswapRouterV2Addr, marketData, string(abi.encodePacked("swap 0 to 1 fail-> ", "balance: ", Strings.toString(beforeTotal1Balance))));
             uint256 balance1Changed = et1.balanceOf(address(mainContract)) - beforeTotal1Balance;
             if (balance1Changed > item.token1Balance)
-                platformFee = int256((balance1Changed - item.token1Balance) * uint256(_pairInfo.platformFeeRate) / 10000);
-            if (platformFee < 0) platformFee = 0;
+                platformFee = (balance1Changed - item.token1Balance) * uint256(_pairInfo.platformFeeRate) / 10000;
             item.token1Balance = balance1Changed - uint256(platformFee);
             _pairStats.totalRealToken1 += item.token1Balance;
             _pairStats.totalFeeToken1 += uint256(platformFee);
@@ -148,8 +149,7 @@ contract TurtleFinancePairV1 is Ownable {
             Utils.functionCall(uniswapRouterV2Addr, marketData, string(abi.encodePacked("swap 1 to 0 fail-> ", "balance: ", Strings.toString(beforeTotal0Balance))));
             uint256 balance0Changed = et0.balanceOf(address(mainContract)) - beforeTotal0Balance;
             if (balance0Changed > item.token0Balance)
-                platformFee = int256((balance0Changed - item.token0Balance) * uint256(_pairInfo.platformFeeRate) / 10000);
-            if (platformFee < 0) platformFee = 0;
+                platformFee = (balance0Changed - item.token0Balance) * uint256(_pairInfo.platformFeeRate) / 10000;
             item.token0Balance = balance0Changed - uint256(platformFee);
             _pairStats.totalRealToken0 += item.token0Balance;
             _pairStats.totalFeeToken0 += uint256(platformFee);
@@ -210,11 +210,20 @@ contract TurtleFinancePairV1 is Ownable {
         return item;
     }
 
+
+    function rewardPools() public view returns (TurtleFinanceTreRewardV1.Pool[] memory) {
+        return reward.getPools();
+    }
+
     function rewardEarned(address account) public view returns (uint256) {
         return reward.earned(account);
     }
 
     function rewardGet(address account) public onlyOwner {
         return reward.getReward(account);
+    }
+
+    function rewardAddPool(address sender, uint256 totalRewardQuantity, uint256 startTime, uint256 periodTime) public onlyOwner {
+        reward.addPool(sender, totalRewardQuantity, startTime, periodTime);
     }
 }

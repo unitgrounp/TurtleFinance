@@ -8,97 +8,141 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract TurtleFinanceTreRewardV1 is Ownable {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.UintSet;
 
     IERC20 public tre;
-    uint256 public halvePeriodTime;
-    uint256 public halvePeriodRate;
-    uint256 public rewardRate = 0;
-    uint256 public lastUpdateTime;
-    uint256 public rewardPerTokenStored;
-    uint256 public initRewardQuantity;
-    uint256 public currRewardQuantity;
-    uint256 public currEndTime;
-    uint256 public halveCount;
-    uint256 public halveMax;
-
+    uint256 private pool_id_seq_;
     uint256 public totalBalance;
-    uint256 public totalPaidReward;
-
-    mapping(address => uint256) public userRewardPerTokenPaid;
-    mapping(address => uint256) public unpaidRewards;
-    mapping(address => uint256) public paidRewards;
     mapping(address => uint256) public balances;
 
-    event RewardPaid(address indexed user, uint256 reward);
+    struct Pool {
+        uint256 id;
+        uint256 rewardRate;
+        uint256 lastUpdateTime;
+        uint256 rewardPerTokenStored;
+        uint256 totalRewardQuantity;
+        uint256 startTime;
+        uint256 endTime;
+        uint256 totalPaidReward;
+    }
 
-    constructor(address tre_, uint256 halvePeriodTime_, uint256 halvePeriodRate_, uint256 totalRewardQuantity_, uint256 halveMax_) public {
+    mapping(uint256 => mapping(address => uint256)) private userRewardPerTokenPaid;
+    mapping(uint256 => mapping(address => uint256)) private unpaidRewards;
+    mapping(uint256 => mapping(address => uint256)) private paidRewards;
+    mapping(uint256 => Pool) private pools;
+
+    EnumerableSet.UintSet private poolIdList;
+
+    event RewardPaid(uint256 pool, address indexed user, uint256 reward);
+
+    constructor(address tre_) public {
+        require(tre_ != address(0), "tre_ address cannot be 0");
         tre = IERC20(tre_);
-        halvePeriodTime = halvePeriodTime_;
-        halvePeriodRate = halvePeriodRate_;
-        halveMax = halveMax_;
-        initRewardQuantity = totalRewardQuantity_;
-        currRewardQuantity = totalRewardQuantity_;
-        rewardRate = initRewardQuantity / halvePeriodTime;
-        currEndTime = block.timestamp + halvePeriodTime;
-        lastUpdateTime = block.timestamp;
+        pool_id_seq_ = 1;
     }
 
 
-    modifier updateHalve() {
-        if (block.timestamp >= currEndTime) {
-            if (halveMax > 0 && halveCount >= halveMax) return;
-            currRewardQuantity = currRewardQuantity * halvePeriodRate / 10000;
-            rewardRate = currRewardQuantity / halvePeriodTime;
-            currEndTime = block.timestamp + halvePeriodTime;
-            halveCount++;
-        }
-        _;
-    }
-
-    modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
-        lastUpdateTime = lastTimeRewardApplicable();
+    function updateReward(uint256 pid, address account) private {
+        Pool storage pool = pools[pid];
+        if (pool.startTime > block.timestamp) return;
+        pool.rewardPerTokenStored = rewardPerToken(pid);
+        pool.lastUpdateTime = lastTimeRewardApplicable(pid);
         if (account != address(0)) {
-            unpaidRewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+            unpaidRewards[pool.id][account] = earnedByPool(pid, account);
+            userRewardPerTokenPaid[pool.id][account] = pool.rewardPerTokenStored;
         }
-        _;
     }
 
-    function lastTimeRewardApplicable() public view returns (uint256) {
-        return Math.min(block.timestamp, currEndTime);
+    function addPool(address sender, uint256 totalRewardQuantity_, uint256 startTime, uint256 periodTime) public onlyOwner {
+        require(startTime >= block.timestamp, "startTime < now");
+        require(periodTime >= 60, "periodTime < 60");
+        tre.transferFrom(sender, address(this), totalRewardQuantity_);
+        Pool memory pool;
+        pool.id = pool_id_seq_++;
+        pool.totalRewardQuantity = totalRewardQuantity_;
+        pool.rewardRate = totalRewardQuantity_ / periodTime;
+        pool.startTime = startTime;
+        pool.endTime = startTime + periodTime;
+        pool.lastUpdateTime = startTime;
+        pools[pool.id] = pool;
+        poolIdList.add(pool.id);
     }
 
-    function rewardPerToken() public view returns (uint256) {
+    // ---------------------- view functions -------------------------
+    function getPools() public view returns (Pool[] memory){
+        uint256 len = poolIdList.length();
+        Pool[] memory _pools = new Pool[](len);
+        for (uint i = 0; i < len; i++) {
+            _pools[i] = pools[poolIdList.at(i)];
+        }
+        return _pools;
+    }
+
+    function lastTimeRewardApplicable(uint256 pid) public view returns (uint256) {
+        if (block.timestamp < pools[pid].startTime) return pools[pid].startTime;
+        return Math.min(block.timestamp, pools[pid].endTime);
+    }
+
+    function rewardPerToken(uint256 pid) public view returns (uint256) {
         if (totalBalance == 0) {
-            return rewardPerTokenStored;
+            return pools[pid].rewardPerTokenStored;
         }
-        return rewardPerTokenStored + ((lastTimeRewardApplicable() - lastUpdateTime) * rewardRate * 1e18 / totalBalance);
+        return pools[pid].rewardPerTokenStored + ((lastTimeRewardApplicable(pid) - pools[pid].lastUpdateTime) * pools[pid].rewardRate * 1e18 / totalBalance);
     }
 
-    function earned(address account) public view returns (uint256) {
-        uint256 amount = (balances[account] * (rewardPerToken() - userRewardPerTokenPaid[account])) / 1e18 + unpaidRewards[account];
+    function earnedByPool(uint256 pid, address account) public view returns (uint256) {
+        if (pools[pid].startTime > block.timestamp) return 0;
+        uint256 urptp = userRewardPerTokenPaid[pid][account];
+        uint256 amount = (balances[account] * (rewardPerToken(pid) - urptp)) / 1e18 + unpaidRewards[pid][account];
         return amount;
     }
 
-    function plusBalance(address account, uint256 quantity) onlyOwner updateReward(account) updateHalve public {
+    function earned(address account) public view returns (uint256) {
+        uint256 earned_ = 0;
+        uint256 len = poolIdList.length();
+        for (uint i = 0; i < len; i++) {
+            earned_ += earnedByPool(poolIdList.at(i), account);
+        }
+        return earned_;
+    }
+    // ---------------------- end view functions -------------------------
+
+    function plusBalance(address account, uint256 quantity) onlyOwner public {
+        require(account != address(0), "account address cannot be 0");
+        uint256 len = poolIdList.length();
+        for (uint i = 0; i < len; i++) {
+            updateReward(poolIdList.at(i), account);
+        }
         balances[account] = balances[account] + quantity;
         totalBalance = totalBalance + quantity;
     }
 
-    function minusBalance(address account, uint256 quantity) onlyOwner updateReward(account) updateHalve public {
+    function minusBalance(address account, uint256 quantity) onlyOwner public {
+        require(account != address(0), "account address cannot be 0");
+        uint256 len = poolIdList.length();
+        for (uint i = 0; i < len; i++) {
+            updateReward(poolIdList.at(i), account);
+        }
         balances[account] = balances[account] - quantity;
         totalBalance = totalBalance - quantity;
     }
 
-    function getReward(address account) onlyOwner updateReward(account) updateHalve public {
-        uint256 reward = earned(account);
+    function getRewardByPool(uint256 pid, address account) onlyOwner public {
+        updateReward(pid, account);
+        uint256 reward = earnedByPool(pid, account);
         if (reward > 0) {
-            unpaidRewards[account] = 0;
-            paidRewards[account] = paidRewards[account] + reward;
+            unpaidRewards[pid][account] = 0;
+            paidRewards[pid][account] = paidRewards[pid][account] + reward;
+            pools[pid].totalPaidReward = pools[pid].totalPaidReward + reward;
             tre.safeTransfer(account, reward);
-            totalPaidReward = totalPaidReward + reward;
-            emit RewardPaid(account, reward);
+            emit RewardPaid(pid, account, reward);
+        }
+    }
+
+    function getReward(address account) onlyOwner public {
+        uint256 len = poolIdList.length();
+        for (uint i = 0; i < len; i++) {
+            getRewardByPool(poolIdList.at(i), account);
         }
     }
 

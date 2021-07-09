@@ -73,6 +73,8 @@ contract BankCoinWind is ITurtleFinanceTokenPoolBank {
     ITurtleFinanceMainV1 public mainContract;
 
     constructor(address mainAddr_, address coinWind_) {
+        require(mainAddr_ != address(0), "mainAddr_ address cannot be 0");
+        require(coinWind_ != address(0), "coinWind_ address cannot be 0");
         coinWind = ICoinWind(coinWind_);
         mainContract = ITurtleFinanceMainV1(mainAddr_);
     }
@@ -96,8 +98,6 @@ contract BankCoinWind is ITurtleFinanceTokenPoolBank {
                 return (info, i);
         }
         require(false, "BankCoinWind: pool not found");
-        ICoinWindStructs.PoolInfo memory e;
-        return (e, 0);
     }
 
     // ----------------------- public view functions ---------------------
