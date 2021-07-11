@@ -14,6 +14,7 @@ contract BankDefault is ITurtleFinanceTokenPoolBank {
     ITurtleFinanceMainV1 public mainContract;
 
     constructor(address mainAddr_) {
+        require(mainAddr_ != address(0), "mainAddr_ address cannot be 0");
         mainContract = ITurtleFinanceMainV1(mainAddr_);
     }
 

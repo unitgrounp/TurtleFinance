@@ -98,11 +98,11 @@ contract TurtleFinancePairV1 is Ownable {
         return IMdexSwapMining(addr).getUserReward(pid);
     }
 
-    function setUniswapRouterV2Addr(address uniswapRouterV2Addr_) public onlyOwner {
+    function setUniswapRouterV2Addr(address uniswapRouterV2Addr_) external onlyOwner {
         uniswapRouterV2Addr = uniswapRouterV2Addr_;
     }
 
-    function setPairInfo(PairInfo calldata form) public onlyOwner {
+    function setPairInfo(PairInfo calldata form) external onlyOwner {
         require(form.minToken0 <= form.maxToken0, 'minToken0 cannot larger than maxToken0');
         require(form.minToken1 <= form.maxToken1, 'minToken1 cannot larger than maxToken1');
         _pairInfo.enabled = form.enabled;
@@ -113,7 +113,7 @@ contract TurtleFinancePairV1 is Ownable {
         _pairInfo.platformFeeRate = form.platformFeeRate;
     }
 
-    function mdexSwapMiningTakerWithdraw(address addr, address to) public onlyOwner {
+    function mdexSwapMiningTakerWithdraw(address addr, address to) external onlyOwner {
         IMdexSwapMining c = IMdexSwapMining(addr);
         IERC20 mdx = IERC20(c.mdx());
         uint256 beforeMdxBalance = mdx.balanceOf(address(this));
@@ -121,7 +121,7 @@ contract TurtleFinancePairV1 is Ownable {
         mdx.transfer(to, mdx.balanceOf(address(this)) - beforeMdxBalance);
     }
 
-    function swap(uint256 itemId, bytes memory marketData) public onlyOwner returns (SwapItem memory, uint256){
+    function swap(uint256 itemId, bytes memory marketData) external onlyOwner returns (SwapItem memory, uint256){
         SwapItem storage item = swapItemMap[itemId];
         require(item.enabled, "disabled");
         IERC20 et0 = IERC20(_pairInfo.token0);
@@ -157,7 +157,7 @@ contract TurtleFinancePairV1 is Ownable {
         return (item, uint256(platformFee));
     }
 
-    function create(address maker, uint256 id, uint256 extId, uint16 holdIdx, uint256 token0Balance, uint256 token1Balance) public onlyOwner returns (SwapItem memory){
+    function create(address maker, uint256 id, uint256 extId, uint16 holdIdx, uint256 token0Balance, uint256 token1Balance) external onlyOwner returns (SwapItem memory){
         //        uint256 id = _swap_id_seq++;
         require(id > 0 && extId > 0, "ID error");
         require(swapItemExtMap[extId] == 0, "Repeat create");
@@ -193,7 +193,7 @@ contract TurtleFinancePairV1 is Ownable {
         return item;
     }
 
-    function remove(uint256 itemId) public onlyOwner returns (SwapItem memory){
+    function remove(uint256 itemId) external onlyOwner returns (SwapItem memory){
         SwapItem storage item = swapItemMap[itemId];
         require(item.enabled, "disabled");
         _pairStats.activeItemCount -= 1;
@@ -211,19 +211,19 @@ contract TurtleFinancePairV1 is Ownable {
     }
 
 
-    function rewardPools() public view returns (TurtleFinanceTreRewardV1.Pool[] memory) {
+    function rewardPools() external view returns (TurtleFinanceTreRewardV1.Pool[] memory) {
         return reward.getPools();
     }
 
-    function rewardEarned(address account) public view returns (uint256) {
+    function rewardEarned(address account) external view returns (uint256) {
         return reward.earned(account);
     }
 
-    function rewardGet(address account) public onlyOwner {
+    function rewardGet(address account) external onlyOwner {
         return reward.getReward(account);
     }
 
-    function rewardAddPool(address sender, uint256 totalRewardQuantity, uint256 startTime, uint256 periodTime) public onlyOwner {
+    function rewardAddPool(address sender, uint256 totalRewardQuantity, uint256 startTime, uint256 periodTime) external onlyOwner {
         reward.addPool(sender, totalRewardQuantity, startTime, periodTime);
     }
 }
