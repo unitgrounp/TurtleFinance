@@ -383,6 +383,7 @@ contract TurtleFinanceMainV1 is Ownable {
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
         TurtleFinancePairV1.SwapItem memory item = pair.getSwapInfo(itemId);
+        require(item.enabled, "not enable");
         require(item.maker == msg.sender, "not maker");
         if (item.holdIdx == 0) {
             _tokenPoolTransfer(msg.sender, info.token0, item.token0Balance);
