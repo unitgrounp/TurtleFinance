@@ -68,6 +68,8 @@ contract TurtleFinancePairV1 is Ownable {
     PairInfo private _pairInfo;
     PairStats private _pairStats;
 
+    event SetPairInfo(bool enabled, uint256 minToken0, uint256 minToken1, uint256 maxToken0, uint256 maxToken1, uint256 platformFeeRate);
+
 
     constructor (address main, address token0, address token1)  {
         mainContract = ITurtleFinanceMainV1(main);
@@ -111,6 +113,7 @@ contract TurtleFinancePairV1 is Ownable {
         _pairInfo.maxToken0 = form.maxToken0;
         _pairInfo.maxToken1 = form.maxToken1;
         _pairInfo.platformFeeRate = form.platformFeeRate;
+        emit SetPairInfo(form.enabled, form.minToken0, form.minToken1, form.maxToken0, form.maxToken1, form.platformFeeRate);
     }
 
     function mdexSwapMiningTakerWithdraw(address addr, address to) external onlyOwner {

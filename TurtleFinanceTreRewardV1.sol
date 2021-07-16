@@ -130,7 +130,7 @@ contract TurtleFinanceTreRewardV1 is Ownable, ReentrancyGuard {
         totalBalance = totalBalance - quantity;
     }
 
-    function getRewardByPool(uint256 pid, address account) onlyOwner nonReentrant external {
+    function _getRewardByPool(uint256 pid, address account) private {
         updateReward(pid, account);
         uint256 reward = earnedByPool(pid, account);
         if (reward > 0) {
@@ -142,10 +142,14 @@ contract TurtleFinanceTreRewardV1 is Ownable, ReentrancyGuard {
         }
     }
 
-    function getReward(address account) onlyOwner external {
+    function getRewardByPool(uint256 pid, address account) onlyOwner nonReentrant external {
+        _getRewardByPool(pid, account);
+    }
+
+    function getReward(address account) onlyOwner nonReentrant external {
         uint256 len = poolIdList.length();
         for (uint i = 0; i < len; i++) {
-            this.getRewardByPool(poolIdList.at(i), account);
+            _getRewardByPool(poolIdList.at(i), account);
         }
     }
 
