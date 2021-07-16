@@ -9,8 +9,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./TurtleFinancePairV1.sol";
 import "./interfaces/ITurtleFinanceTokenPoolBank.sol";
 import "./interfaces/IUniswapRouterV2.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract TurtleFinanceMainV1 is Ownable {
+contract TurtleFinanceMainV1 is Ownable, ReentrancyGuard {
 
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -313,7 +314,7 @@ contract TurtleFinanceMainV1 is Ownable {
         pair.setPairInfo(form);
     }
 
-    function pairSwap(address pairAddress, uint256 itemId, UniswapRouterV2SwapTokenParams memory swapParams) onlyOperator external {
+    function pairSwap(address pairAddress, uint256 itemId, UniswapRouterV2SwapTokenParams memory swapParams) onlyOperator nonReentrant external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
@@ -354,7 +355,7 @@ contract TurtleFinanceMainV1 is Ownable {
         emit Action(pairAddress, "swap", item.maker, item.id, item.holdIdx, item.token0Balance, item.token1Balance);
     }
 
-    function pairCreate(address pairAddress, address maker, uint256 extId, uint16 holdIdx, uint256 token0Balance, uint256 token1Balance) onlyOperator external {
+    function pairCreate(address pairAddress, address maker, uint256 extId, uint16 holdIdx, uint256 token0Balance, uint256 token1Balance) onlyOperator nonReentrant external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
@@ -378,7 +379,7 @@ contract TurtleFinanceMainV1 is Ownable {
         emit Action(pairAddress, "create", item.maker, item.id, item.holdIdx, item.token0Balance, item.token1Balance);
     }
 
-    function pairRemove(address pairAddress, uint256 itemId) onlyNotLocked external {
+    function pairRemove(address pairAddress, uint256 itemId) onlyNotLocked nonReentrant external {
         require(pairs.contains(pairAddress), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddress);
         TurtleFinancePairV1.PairInfo memory info = pair.pairInfo();
@@ -406,7 +407,7 @@ contract TurtleFinanceMainV1 is Ownable {
         return earned;
     }
 
-    function pairRewardGet() onlyNotLocked external {
+    function pairRewardGet() onlyNotLocked nonReentrant external {
         uint256 len = pairs.length();
         for (uint256 i = 0; i < len; i++) {
             address pairAddr = pairs.at(i);
@@ -415,7 +416,7 @@ contract TurtleFinanceMainV1 is Ownable {
         }
     }
 
-    function pairRewardGetOfPair(address pairAddr) onlyNotLocked external {
+    function pairRewardGetOfPair(address pairAddr) onlyNotLocked nonReentrant external {
         require(pairs.contains(pairAddr), "pair not exists");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddr);
         pair.rewardGet(msg.sender);

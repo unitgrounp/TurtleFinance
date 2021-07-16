@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract TurtleFinanceTreRewardV1 is Ownable {
+contract TurtleFinanceTreRewardV1 is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -33,7 +34,8 @@ contract TurtleFinanceTreRewardV1 is Ownable {
 
     EnumerableSet.UintSet private poolIdList;
 
-    event RewardPaid(uint256 pool, address indexed user, uint256 reward);
+    event RewardPaid(uint256 poolId, address indexed user, uint256 reward);
+    event AddPool(uint256 poolId, uint256 totalRewardQuantity_, uint256 startTime, uint256 periodTime);
 
     constructor(address tre_) public {
         require(tre_ != address(0), "tre_ address cannot be 0");
@@ -53,7 +55,7 @@ contract TurtleFinanceTreRewardV1 is Ownable {
         }
     }
 
-    function addPool(address sender, uint256 totalRewardQuantity_, uint256 startTime, uint256 periodTime) public onlyOwner {
+    function addPool(address sender, uint256 totalRewardQuantity_, uint256 startTime, uint256 periodTime) nonReentrant external onlyOwner {
         require(startTime >= block.timestamp, "startTime < now");
         require(periodTime >= 60, "periodTime < 60");
         tre.transferFrom(sender, address(this), totalRewardQuantity_);
@@ -66,6 +68,7 @@ contract TurtleFinanceTreRewardV1 is Ownable {
         pool.lastUpdateTime = startTime;
         pools[pool.id] = pool;
         poolIdList.add(pool.id);
+        emit AddPool(pool.id, totalRewardQuantity_, startTime, periodTime);
     }
 
     // ---------------------- view functions -------------------------
@@ -107,7 +110,7 @@ contract TurtleFinanceTreRewardV1 is Ownable {
     }
     // ---------------------- end view functions -------------------------
 
-    function plusBalance(address account, uint256 quantity) onlyOwner public {
+    function plusBalance(address account, uint256 quantity) onlyOwner external {
         require(account != address(0), "account address cannot be 0");
         uint256 len = poolIdList.length();
         for (uint i = 0; i < len; i++) {
@@ -117,7 +120,7 @@ contract TurtleFinanceTreRewardV1 is Ownable {
         totalBalance = totalBalance + quantity;
     }
 
-    function minusBalance(address account, uint256 quantity) onlyOwner public {
+    function minusBalance(address account, uint256 quantity) onlyOwner external {
         require(account != address(0), "account address cannot be 0");
         uint256 len = poolIdList.length();
         for (uint i = 0; i < len; i++) {
@@ -127,7 +130,7 @@ contract TurtleFinanceTreRewardV1 is Ownable {
         totalBalance = totalBalance - quantity;
     }
 
-    function getRewardByPool(uint256 pid, address account) onlyOwner public {
+    function getRewardByPool(uint256 pid, address account) onlyOwner nonReentrant external {
         updateReward(pid, account);
         uint256 reward = earnedByPool(pid, account);
         if (reward > 0) {
@@ -139,10 +142,10 @@ contract TurtleFinanceTreRewardV1 is Ownable {
         }
     }
 
-    function getReward(address account) onlyOwner public {
+    function getReward(address account) onlyOwner external {
         uint256 len = poolIdList.length();
         for (uint i = 0; i < len; i++) {
-            getRewardByPool(poolIdList.at(i), account);
+            this.getRewardByPool(poolIdList.at(i), account);
         }
     }
 
