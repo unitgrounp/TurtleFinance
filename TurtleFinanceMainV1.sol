@@ -42,6 +42,7 @@ contract TurtleFinanceMainV1 is Ownable, ReentrancyGuard {
     EnumerableSet.AddressSet pairs;
     EnumerableSet.AddressSet tokenPools;
     address public mdexSwapMiningAddr;
+    address public kswapDexMiningAddr;
     address public treTokenAddr;
     address public uniswapRouterV2Addr;
     address payable public platformFeeReceiver;
@@ -60,7 +61,7 @@ contract TurtleFinanceMainV1 is Ownable, ReentrancyGuard {
 
     event AddPair(address indexed pair);
 
-    constructor(address treTokenAddr_, address uniswapRouterV2Addr_, address mdexSwapMiningAddr_){
+    constructor(address treTokenAddr_, address uniswapRouterV2Addr_, address mdexSwapMiningAddr_, address kswapDexMiningAddr_){
         require(treTokenAddr_ != address(0), "treTokenAddr_ address cannot be 0");
         require(uniswapRouterV2Addr_ != address(0), "uniswapRouterV2Addr_ address cannot be 0");
         _operator = _msgSender();
@@ -68,6 +69,7 @@ contract TurtleFinanceMainV1 is Ownable, ReentrancyGuard {
         treTokenAddr = treTokenAddr_;
         uniswapRouterV2Addr = uniswapRouterV2Addr_;
         mdexSwapMiningAddr = mdexSwapMiningAddr_;
+        kswapDexMiningAddr = kswapDexMiningAddr_;
     }
 
     function _transferOperator(address newOperator_) internal {
@@ -241,6 +243,13 @@ contract TurtleFinanceMainV1 is Ownable, ReentrancyGuard {
         require(mdexSwapMiningAddr != address(0), "Not support");
         TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddr);
         pair.mdexSwapMiningTakerWithdraw(mdexSwapMiningAddr, to);
+    }
+
+    function pairKswapDexMiningTakerWithdraw(address pairAddr, uint256 pid, address to) external onlyOwner {
+        require(pairs.contains(pairAddr), "pair not exists");
+        require(kswapDexMiningAddr != address(0), "Not support");
+        TurtleFinancePairV1 pair = TurtleFinancePairV1(pairAddr);
+        pair.kswapMiningTakerWithdraw(kswapDexMiningAddr, pid, to);
     }
 
     function tokenPoolSet(address addr, address bankAddr, uint256 min, uint256 exp, uint256 max) external onlyOwner {

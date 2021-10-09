@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "./interfaces/ITurtleFinanceMainV1.sol";
 import "./interfaces/IUniswapRouterV2.sol";
 import "./interfaces/IMdexSwapMining.sol";
+import "./interfaces/IKswapDexMining.sol";
 import "./TurtleFinanceTreRewardV1.sol";
 import "./Utils.sol";
 
@@ -117,11 +118,21 @@ contract TurtleFinancePairV1 is Ownable {
     }
 
     function mdexSwapMiningTakerWithdraw(address addr, address to) external onlyOwner {
+        require(addr != address(0), "add is zero");
         IMdexSwapMining c = IMdexSwapMining(addr);
         IERC20 mdx = IERC20(c.mdx());
         uint256 beforeMdxBalance = mdx.balanceOf(address(this));
         c.takerWithdraw();
         mdx.transfer(to, mdx.balanceOf(address(this)) - beforeMdxBalance);
+    }
+
+    function kswapMiningTakerWithdraw(address addr, uint256 pid, address to) external onlyOwner {
+        require(addr != address(0), "add is zero");
+        IKswapDexMining c = IKswapDexMining(addr);
+        IERC20 kst = IERC20(c.kst());
+        uint256 beforeKstBalance = kst.balanceOf(address(this));
+        c.emergencyWithdraw(pid);
+        kst.transfer(to, kst.balanceOf(address(this)) - beforeKstBalance);
     }
 
     function swap(uint256 itemId, bytes memory marketData) external onlyOwner returns (SwapItem memory, uint256){
